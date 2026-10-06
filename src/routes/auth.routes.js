@@ -7,6 +7,8 @@ const { protect } = require('../middlewares/auth.middleware');
 // Public Routes (লগইন বা টোকেন লাগে না)
 router.post('/register', authController.register);
 router.post('/login', authController.login);
+// ... আগের রাউটগুলো ...
+router.get('/shopify/callback', authController.shopifyCallback);
 
 // Protected Route (এখানে protect মিডলওয়্যারটি গার্ড হিসেবে বসানো হলো)
 router.get('/profile', protect, authController.getProfile);

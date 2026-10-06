@@ -38,6 +38,25 @@ app.get('/api/health', (req, res) => {
     });
 });
 
+// Shopify Fallback Redirect Handler (Updated for OAuth Flow)
+app.get('/', (req, res) => {
+    const { shop, code } = req.query;
+
+    // ১. যদি লিংকে code এবং shop দুটিই থাকে, তবে টোকেন জেনারেট করার রাউটে পাঠাও
+    if (code && shop) {
+        return res.redirect(`/v1/auth/shopify/callback?code=${code}&shop=${shop}`);
+    }
+
+    // ২. যদি লিংকে শুধু shop থাকে (অর্থাৎ ইনস্টলের প্রথম ধাপ), তবে পারমিশন পেজে পাঠাও
+    if (shop) {
+        const authUrl = `https://${shop}/admin/oauth/authorize?client_id=${process.env.SHOPIFY_CLIENT_ID}&scope=read_products,write_products&redirect_uri=http://localhost:3001/v1/auth/shopify/callback`;
+        return res.redirect(authUrl);
+    }
+
+    // ৩. কোনো কিছুই না থাকলে সাধারণ মেসেজ দেখাও
+    res.status(200).send('TrulyMaple Engine is running. Waiting for Shopify connection...');
+});
+
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
     console.log(`=================================`);

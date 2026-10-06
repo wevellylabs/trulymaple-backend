@@ -74,3 +74,38 @@ exports.getProfile = async (req, res) => {
         data: req.vendor
     });
 };
+
+
+const axios = require('axios');
+
+// Shopify OAuth Callback
+exports.shopifyCallback = async (req, res) => {
+    const { shop, code } = req.query;
+
+    if (!shop || !code) {
+        return res.status(400).send("Missing shop or code parameter.");
+    }
+
+    try {
+        // টোকেনের জন্য Shopify-তে রিকোয়েস্ট পাঠানো
+        const response = await axios.post(`https://${shop}/admin/oauth/access_token`, {
+            client_id: process.env.SHOPIFY_CLIENT_ID,
+            client_secret: process.env.SHOPIFY_CLIENT_SECRET,
+            code: code
+        });
+
+        const accessToken = response.data.access_token;
+        
+        console.log(`\n🎉 SUCCESS! Here is your Shopify Access Token:`);
+        console.log(`🔑 ${accessToken}\n`);
+        console.log(`Please copy this token and add it to your .env file as SHOPIFY_TEST_TOKEN`);
+
+        res.status(200).send(`
+            <h2>App Installed Successfully!</h2>
+            <p>Please check your VS Code Terminal for the Access Token.</p>
+        `);
+    } catch (error) {
+        console.error("❌ Error generating token:", error.response ? error.response.data : error.message);
+        res.status(500).send("Error generating token");
+    }
+};

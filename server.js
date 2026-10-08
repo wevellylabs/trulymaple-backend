@@ -1,11 +1,15 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
+
+dotenv.config();
+
 const helmet = require('helmet');
 const morgan = require('morgan');
 const connectDB = require('./src/config/db');
+const webhookController = require('./src/controllers/webhook.controller');
 
-dotenv.config();
+
 
 // Connect to Database
 connectDB();
@@ -17,17 +21,27 @@ app.use(cors({
     origin: process.env.FRONTEND_URL || 'http://localhost:3000',
     credentials: true
 }));
-app.use(express.json());
+
 app.use(morgan('dev'));
+
+// ⚠️ Webhook Route (MUST be before express.json)
+app.post('/v1/webhooks/stripe', express.raw({ type: 'application/json' }), webhookController.handleStripeWebhook);
+
+// Global Body Parser
+app.use(express.json());
 
 // ----------------------------------------
 // ROUTES IMPORT & SETUP
 // ----------------------------------------
 const authRoutes = require('./src/routes/auth.routes');
-const catalogRoutes = require('./src/routes/catalog.routes'); // নতুন ইমপোর্ট
+const catalogRoutes = require('./src/routes/catalog.routes');
+const kycRoutes = require('./src/routes/kyc.routes'); // নতুন ইমপোর্ট
+
 
 app.use('/v1/auth', authRoutes);
-app.use('/v1/catalog', catalogRoutes); // নতুন রাউট
+app.use('/v1/catalog', catalogRoutes); 
+app.use('/v1/kyc', kycRoutes); // নতুন রাউট
+
 
 // Base Health Route
 app.get('/api/health', (req, res) => {
@@ -38,23 +52,24 @@ app.get('/api/health', (req, res) => {
     });
 });
 
-// Shopify Fallback Redirect Handler (Updated for OAuth Flow)
+// Shopify Fallback Redirect Handler (Updated for Production Flow)
 app.get('/', (req, res) => {
-    const { shop, code } = req.query;
+    // ফ্রন্টএন্ড থেকে আসার সময় shop এবং vendorId আসবে
+    const { shop, code, state, vendorId } = req.query;
 
-    // ১. যদি লিংকে code এবং shop দুটিই থাকে, তবে টোকেন জেনারেট করার রাউটে পাঠাও
-    if (code && shop) {
-        return res.redirect(`/v1/auth/shopify/callback?code=${code}&shop=${shop}`);
+    // ১. শপিফাই থেকে ফিরে আসার ফ্লো (code এবং state থাকলে callback-এ পাঠাও)
+    if (code && shop && state) {
+        return res.redirect(`/v1/auth/shopify/callback?code=${code}&shop=${shop}&state=${state}`);
     }
 
-    // ২. যদি লিংকে শুধু shop থাকে (অর্থাৎ ইনস্টলের প্রথম ধাপ), তবে পারমিশন পেজে পাঠাও
-    if (shop) {
-        const authUrl = `https://${shop}/admin/oauth/authorize?client_id=${process.env.SHOPIFY_CLIENT_ID}&scope=read_products,write_products&redirect_uri=http://localhost:3001/v1/auth/shopify/callback`;
+    // ২. শপিফাইতে যাওয়ার ফ্লো (shop এবং vendorId থাকলে)
+    if (shop && vendorId) {
+        // ⚠️ লক্ষ্য করুন: state=${vendorId} দিয়ে আমরা ভেন্ডরের আইডিটি শপিফাইকে দিয়ে দিচ্ছি
+        const authUrl = `https://${shop}/admin/oauth/authorize?client_id=${process.env.SHOPIFY_CLIENT_ID}&scope=read_products,write_products&redirect_uri=http://localhost:3001/v1/auth/shopify/callback&state=${vendorId}`;
         return res.redirect(authUrl);
     }
 
-    // ৩. কোনো কিছুই না থাকলে সাধারণ মেসেজ দেখাও
-    res.status(200).send('TrulyMaple Engine is running. Waiting for Shopify connection...');
+    res.status(200).send('TrulyMaple Engine is running. Please provide shop and vendorId in the URL to connect.');
 });
 
 const PORT = process.env.PORT || 3001;

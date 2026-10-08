@@ -1,3 +1,4 @@
+const { translationQueue } = require('./translation.queue');
 const { Queue, Worker } = require('bullmq');
 const IORedis = require('ioredis');
 const shopifyService = require('../services/shopify.service');
@@ -46,6 +47,20 @@ const worker = new Worker('catalog-sync', async (job) => {
         }
 
         console.log(`[Queue] ✅ Successfully saved/updated ${savedCount} products in MongoDB!`);
+        
+        // AI ট্রান্সলেশনের কাজ শুরু
+        console.log(`[Queue] 🚀 Fetching untranslated products to send to AI...`);
+        const untranslated = await Product.find({ vendor: job.data.vendorId, is_translated: false });
+        
+        // টেস্টিং এবং API টোকেন ব্যালেন্স বাঁচানোর জন্য আপাতত প্রথম ৩টি প্রোডাক্ট এআই-কে দিচ্ছি
+        // (ভবিষ্যতে প্রোডাকশনে আমরা untranslated.forEach ব্যবহার করব)
+        const testBatch = untranslated.slice(0, 3); 
+
+        for (const prod of testBatch) {
+            await translationQueue.add('translate', { productId: prod._id });
+        }
+        console.log(`[Queue] 🤖 Sent ${testBatch.length} products to AI Translation Queue!`);
+
         console.log(`[Queue] 🎉 Job ${job.id} Completed!\n`);
 
     } catch (error) {

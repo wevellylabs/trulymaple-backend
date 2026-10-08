@@ -23,7 +23,13 @@ const productSchema = new mongoose.Schema({
         type: String, 
         default: 'active' 
     },
-    // ভবিষ্যতে AI ট্রান্সলেশন ট্র্যাক করার জন্য
+    // AI ট্রান্সলেশন ফিল্ড
+    translated_title: { 
+        type: String 
+    },
+    translated_description: { 
+        type: String 
+    },
     is_translated: { 
         type: Boolean, 
         default: false 

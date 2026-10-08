@@ -78,16 +78,17 @@ exports.getProfile = async (req, res) => {
 
 const axios = require('axios');
 
-// Shopify OAuth Callback
+// Shopify OAuth Callback (Production Ready)
 exports.shopifyCallback = async (req, res) => {
-    const { shop, code } = req.query;
+    // শপিফাই এখন state-এর ভেতর ভেন্ডর আইডিটি ফেরত পাঠাবে
+    const { shop, code, state } = req.query; 
 
-    if (!shop || !code) {
-        return res.status(400).send("Missing shop or code parameter.");
+    if (!shop || !code || !state) {
+        return res.status(400).send("Missing shop, code, or state parameter.");
     }
 
     try {
-        // টোকেনের জন্য Shopify-তে রিকোয়েস্ট পাঠানো
+        // ১. টোকেনের জন্য Shopify-তে রিকোয়েস্ট পাঠানো
         const response = await axios.post(`https://${shop}/admin/oauth/access_token`, {
             client_id: process.env.SHOPIFY_CLIENT_ID,
             client_secret: process.env.SHOPIFY_CLIENT_SECRET,
@@ -96,16 +97,26 @@ exports.shopifyCallback = async (req, res) => {
 
         const accessToken = response.data.access_token;
         
-        console.log(`\n🎉 SUCCESS! Here is your Shopify Access Token:`);
-        console.log(`🔑 ${accessToken}\n`);
-        console.log(`Please copy this token and add it to your .env file as SHOPIFY_TEST_TOKEN`);
+        // ২. State থেকে ভেন্ডরের আইডিটি বের করে ডাটাবেস আপডেট করা
+        const vendorId = state; // state-এর ভেতরেই ভেন্ডর আইডি আছে
+        const vendor = await Vendor.findById(vendorId);
 
-        res.status(200).send(`
-            <h2>App Installed Successfully!</h2>
-            <p>Please check your VS Code Terminal for the Access Token.</p>
-        `);
+        if (vendor) {
+            // ডাটাবেসে স্ট্যাটাস আপডেট করা
+            vendor.shopify_connected = true;
+            vendor.onboarding_status = 'COMPLETED';
+            vendor.shopify_access_token = accessToken; // ভবিষ্যতের জন্য টোকেন সেভ রাখা
+            vendor.shop_domain = shop;
+            
+            await vendor.save(); // 👈 এই হচ্ছে আপনার কাঙ্ক্ষিত সেভ ফাংশন!
+            console.log(`[Shopify OAuth] ✅ Vendor ${vendorId} successfully connected! Database updated.`);
+        }
+
+        // ৩. কাজ শেষ হওয়ার পর ফ্রন্টএন্ডের ড্যাশবোর্ডে রিডাইরেক্ট করে দেওয়া
+        res.redirect(`${process.env.FRONTEND_URL}/dashboard?shopify=success`);
+
     } catch (error) {
         console.error("❌ Error generating token:", error.response ? error.response.data : error.message);
-        res.status(500).send("Error generating token");
+        res.redirect(`${process.env.FRONTEND_URL}/dashboard?shopify=error`);
     }
 };

@@ -22,7 +22,9 @@
     "ioredis": "^6.0.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.11.0",
-    "morgan": "^1.12.1"
+    "morgan": "^1.12.1",
+    "openai": "^7.28.0",
+    "stripe": "^23.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"
